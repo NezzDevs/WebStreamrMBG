@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.73.0](https://github.com/newman2x/WebStreamrMBG/compare/v0.72.3...v0.73.0) (2026-05-06)
+
+
+### Continuous Integration
+
+* add commit SHA to unstable version ([0e245df](https://github.com/newman2x/WebStreamrMBG/commit/0e245df9fe209939dc90f9fcd628c16b1381710e))
+* add workflow files to deploy trigger paths ([4e25fae](https://github.com/newman2x/WebStreamrMBG/commit/4e25fae155ab62bd8fbedfa4d54232885dba54e2))
+
+
+### Features
+
+* add HBLinks/HDStream4U extractors, dynamic domain probing, logger propagation ([4fe0824](https://github.com/newman2x/WebStreamrMBG/commit/4fe082455e9001a605de0b936511c6dbe1f2bfa4))
+
+
+### Bug Fixes
+
+* extract video URL ([d94c3bf](https://github.com/newman2x/WebStreamrMBG/commit/d94c3bf63342274b706efd942bfb458bb52eb35e))
+* startup race condition and cookie bugs ([533a929](https://github.com/newman2x/WebStreamrMBG/commit/533a929d8ee756d5fec533fdc83fd282a83001bd))
+
 ## [0.72.3](https://github.com/newman2x/WebStreamrMBG/compare/v0.72.2...v0.72.3) (2026-04-28)
 
 
