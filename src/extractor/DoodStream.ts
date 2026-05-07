@@ -22,7 +22,7 @@ export class DoodStream extends Extractor {
   public override normalize(url: URL): URL {
     const videoId = url.pathname.replace(/\/+$/, '').split('/').at(-1) as string;
 
-    return new URL(`http://dood.to/e/${videoId}`);
+    return new URL(`https://dood.to/e/${videoId}`);
   };
 
   protected async extractInternal(ctx: Context, url: URL, meta: Meta): Promise<InternalUrlResult[]> {

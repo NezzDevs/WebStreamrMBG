@@ -29,7 +29,7 @@ export class SuperVideo extends Extractor {
       return await this.extractInternal(ctx, new URL(`/e${url.pathname}`, url.origin), meta);
     }
 
-    if (/'The file was deleted|The file expired|Video is processing/.test(html)) {
+    if (/The file was deleted|The file expired|Video is processing/.test(html)) {
       throw new NotFoundError();
     }
 

@@ -5,7 +5,7 @@ const countryCodeMap: Record<CountryCode, { language: string; flag: string; iso6
   al: { language: 'Albanian', flag: '🇦🇱', iso639: 'alb' },
   ar: { language: 'Arabic', flag: '🇸🇦', iso639: 'ara' },
   bg: { language: 'Bulgarian', flag: '🇧🇬', iso639: 'bul' },
-  bl: { language: 'Bengali', flag: '🇮🇳', iso639: 'mal' },
+  bl: { language: 'Bengali', flag: '🇮🇳', iso639: 'ben' },
   cs: { language: 'Czech', flag: '🇨🇿', iso639: 'ces' },
   de: { language: 'German', flag: '🇩🇪', iso639: 'ger' },
   el: { language: 'Greek', flag: '🇬🇷', iso639: 'gre' },

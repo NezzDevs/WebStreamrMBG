@@ -82,9 +82,7 @@ if (envIsProd()) {
   addon.use(rateLimit({ windowMs: 60 * 1000, limit: 30 }));
 }
 
-addon.use((req: Request, res: Response, next: NextFunction) => {
-  process.env['PROTOCOL'] = req.protocol;
-
+addon.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Request-ID', randomUUID());
 
   res.setHeader('Access-Control-Allow-Origin', '*');

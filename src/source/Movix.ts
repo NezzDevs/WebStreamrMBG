@@ -50,8 +50,8 @@ export class Movix extends Source {
     const urls: URL[] = data['player_links'].map(({ decoded_url }) => new URL(decoded_url));
 
     const title = tmdbId.season
-      ? `${json['tmdb_details']['title']} ${tmdbId.formatSeasonAndEpisode()}`
-      : `${json['tmdb_details']['title']} (${year})`;
+      ? `${json['tmdb_details']?.['title'] ?? 'Unknown'} ${tmdbId.formatSeasonAndEpisode()}`
+      : `${json['tmdb_details']?.['title'] ?? 'Unknown'} (${year})`;
 
     return urls.map(url => ({ url, meta: { countryCodes: [CountryCode.fr], referer: data.iframe_src, title } }));
   };

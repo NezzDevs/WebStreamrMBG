@@ -230,6 +230,36 @@ exports[`Movix handle tmdb black mirror s4e2 1`] = `
 ]
 `;
 
+exports[`Movix handles movie without tmdb_details gracefully 1`] = `
+[
+  {
+    "meta": {
+      "countryCodes": [
+        "fr",
+      ],
+      "referer": "https://example.com/embed",
+      "title": "Unknown (2020)",
+    },
+    "url": "https://example.com/video1",
+  },
+]
+`;
+
 exports[`Movix handles non-existent movie gracefully 1`] = `[]`;
 
 exports[`Movix handles non-existent show gracefully 1`] = `[]`;
+
+exports[`Movix handles series without tmdb_details gracefully 1`] = `
+[
+  {
+    "meta": {
+      "countryCodes": [
+        "fr",
+      ],
+      "referer": "https://example.com/embed",
+      "title": "Unknown S01E01",
+    },
+    "url": "https://example.com/video1",
+  },
+]
+`;

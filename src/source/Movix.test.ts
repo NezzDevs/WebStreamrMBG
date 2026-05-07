@@ -30,4 +30,14 @@ describe('Movix', () => {
     const streams = await source.handle(ctx, 'movie', new TmdbId(3176, undefined, undefined));
     expect(streams).toMatchSnapshot();
   });
+
+  test('handles series without tmdb_details gracefully', async () => {
+    const streams = await source.handle(ctx, 'series', new TmdbId(77777, 1, 1));
+    expect(streams).toMatchSnapshot();
+  });
+
+  test('handles movie without tmdb_details gracefully', async () => {
+    const streams = await source.handle(ctx, 'movie', new TmdbId(77777, undefined, undefined));
+    expect(streams).toMatchSnapshot();
+  });
 });
