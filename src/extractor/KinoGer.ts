@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { NotFoundError } from '../error';
 import { Context, Format, InternalUrlResult, Meta } from '../types';
 import { guessHeightFromPlaylist } from '../utils';
 import { Extractor } from './Extractor';
@@ -56,9 +57,23 @@ export class KinoGer extends Extractor {
     const key = Buffer.from('6b69656d7469656e6d75613931316361', 'hex');
     const iv = Buffer.from('313233343536373839306f6975797472', 'hex');
     const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString();
 
-    const { source, title } = JSON.parse(decrypted) as { source: string; title: string };
+    let decrypted = '';
+    try {
+      decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString();
+    } catch {
+      throw new NotFoundError();
+    }
+
+    let source: string;
+    let title: string;
+    try {
+      const parsed = JSON.parse(decrypted) as { source: string; title: string };
+      source = parsed.source;
+      title = parsed.title;
+    } catch {
+      throw new NotFoundError();
+    }
 
     const m3u8Url = new URL(source);
 

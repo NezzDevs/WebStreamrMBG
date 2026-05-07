@@ -42,6 +42,12 @@ describe('resolveRedirectUrl', () => {
     expect((await resolveRedirectUrl(ctx, fetcher, REDIRECT_URL)).href).toBe('https://hub.test.buzz/fallback.mkv');
   });
 
+  test('throws when encoded payload is not valid JSON', async () => {
+    const badPayload = btoa(btoa(rot13Cipher(btoa('not-json-at-all'))));
+    const fetcher = makeFetcher({ [REDIRECT_URL.href]: `<script>s('o','${badPayload}')</script>` });
+    await expect(resolveRedirectUrl(ctx, fetcher, REDIRECT_URL)).rejects.toThrow('[hd-hub-helper] Could not parse redirect data');
+  });
+
   test('throws when JSON payload has no usable URL fields', async () => {
     const payload = buildPayload({});
     const fetcher = makeFetcher({ [REDIRECT_URL.href]: `<script>s('o','${payload}')</script>` });

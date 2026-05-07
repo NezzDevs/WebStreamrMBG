@@ -125,7 +125,12 @@ export class MovieBox extends Source {
       },
     );
 
-    const response = JSON.parse(responseText) as MovieBoxSearchResponse;
+    let response: MovieBoxSearchResponse;
+    try {
+      response = JSON.parse(responseText);
+    } catch {
+      return null;
+    }
 
     if (response.code !== 0 || !response.data?.items?.length) {
       return null;

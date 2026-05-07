@@ -23,7 +23,10 @@ export class StreamEmbed extends Extractor {
       throw new NotFoundError();
     }
 
-    const video = JSON.parse((html.match(/video ?= ?(.*);/) as string[])[1] as string);
+    const videoMatch = html.match(/video ?= ?(.*);/);
+    if (!videoMatch) throw new NotFoundError();
+    const videoJson = videoMatch[1] as string;
+    const video = JSON.parse(videoJson) as { uid: string; md5: string; id: string; status: string; quality: string | undefined; title: string };
 
     const m3u8Url = new URL(`/m3u8/${video.uid}/${video.md5}/master.txt?s=1&id=${video.id}&cache=${video.status}`, url.origin);
 
@@ -37,7 +40,17 @@ export class StreamEmbed extends Extractor {
         format: Format.hls,
         meta: {
           ...meta,
-          height: parseInt(JSON.parse(video.quality)[0]),
+          height: (() => {
+            try {
+              if (!video.quality) return undefined;
+              const qualities = JSON.parse(video.quality) as string[];
+              const firstQuality = qualities[0] as string;
+              const height = parseInt(firstQuality);
+              return height || undefined;
+            } catch {
+              return undefined;
+            }
+          })(),
           title: decodeURIComponent(video.title),
         },
       },

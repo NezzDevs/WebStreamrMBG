@@ -17,11 +17,12 @@ export const resolveRedirectUrl = async (ctx: Context, fetcher: Fetcher, redirec
     throw new Error(`[hd-hub-helper] Could not extract redirect data from: ${redirectUrl.href}`);
   }
 
-  const redirectData = JSON.parse(atob(rot13Cipher(atob(atob(combinedString))))) as {
-    o?: string;
-    data?: string;
-    blog_url?: string;
-  };
+  let redirectData: { o?: string; data?: string; blog_url?: string };
+  try {
+    redirectData = JSON.parse(atob(rot13Cipher(atob(atob(combinedString)))));
+  } catch {
+    throw new Error(`[hd-hub-helper] Could not parse redirect data from: ${redirectUrl.href}`);
+  }
 
   const encodedUrl = (redirectData['o'] ?? '').trim();
   if (encodedUrl) {

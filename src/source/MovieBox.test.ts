@@ -61,4 +61,9 @@ describe('MovieBox', () => {
     const streams = await source.handle(ctx, 'series', new TmdbId(8888892, 1, 1));
     expect(streams).toHaveLength(0);
   });
+
+  test('returns empty when search API returns non-JSON', async () => {
+    const streams = await source.handle(ctx, 'movie', new TmdbId(6666666, undefined, undefined));
+    expect(streams).toHaveLength(0);
+  });
 });

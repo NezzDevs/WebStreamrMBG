@@ -31,4 +31,8 @@ describe('VixSrc', () => {
 
     expect(await extractorRegistry.handle(ctx, new URL('https://vixsrc.to/tv/42009/4/3'))).toMatchSnapshot();
   });
+
+  test('returns empty when embed page has no token/expires/url patterns', async () => {
+    expect(await extractorRegistry.handle(ctx, new URL('https://vixsrc.to/movie/999999'))).toHaveLength(0);
+  });
 });

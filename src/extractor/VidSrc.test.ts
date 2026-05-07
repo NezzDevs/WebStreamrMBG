@@ -17,4 +17,12 @@ describe('VidSrc', () => {
   test('Black Mirror', async () => {
     expect(await extractorRegistry.handle(ctx, new URL('https://vsembed.ru/embed/tv/tt2085059/4-2'))).toMatchSnapshot();
   });
+
+  test('returns empty when rcp page has no src pattern', async () => {
+    expect(await extractorRegistry.handle(ctx, new URL('https://vsembed.ru/embed/movie/tt9999999'))).toHaveLength(0);
+  });
+
+  test('returns empty when player page has no file pattern', async () => {
+    expect(await extractorRegistry.handle(ctx, new URL('https://vsembed.ru/embed/movie/tt8888888'))).toHaveLength(0);
+  });
 });

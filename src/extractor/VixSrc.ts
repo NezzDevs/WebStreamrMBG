@@ -1,3 +1,4 @@
+import { NotFoundError } from '../error';
 import { Context, CountryCode, Format, InternalUrlResult, Meta } from '../types';
 import {
   buildMediaFlowProxyExtractorRedirectUrl, CustomRequestConfig, guessHeightFromPlaylist,
@@ -50,20 +51,24 @@ export class VixSrc extends Extractor {
     const apiJson = await this.fetcher.json(ctx, apiUrl, { headers }) as { src: string };
     const embedUrl = new URL(apiJson.src, 'https://vixsrc.to');
     const html = await this.fetcher.text(ctx, embedUrl, { headers });
-    const tokenMatch = html.match(/['"]token['"]:\s?['"]([^'"]*)['"]/) as string[];
-    const expiresMatch = html.match(/['"]expires['"]:\s?['"]([^'"]*)['"]/) as string[];
-    const urlMatch = html.match(/url:\s?['"]([^'"]*)['"]/) as string[];
-    const baseUrl = new URL(`${urlMatch[1]}`);
+    const tokenMatch = html.match(/['"]token['"]:\s?['"]([^'"]*)['"]/);
+    const expiresMatch = html.match(/['"]expires['"]:\s?['"]([^'"]*)['"]/);
+    const urlMatch = html.match(/url:\s?['"]([^'"]*)['"]/);
+    if (!tokenMatch || !expiresMatch || !urlMatch) throw new NotFoundError();
+    const token = tokenMatch[1] as string;
+    const expires = expiresMatch[1] as string;
+    const urlValue = urlMatch[1] as string;
+    const baseUrl = new URL(urlValue);
     const playlistUrl = new URL(`${baseUrl.origin}${baseUrl.pathname}.m3u8?${baseUrl.searchParams}`);
-    playlistUrl.searchParams.append('token', tokenMatch[1] as string);
-    playlistUrl.searchParams.append('expires', expiresMatch[1] as string);
+    playlistUrl.searchParams.append('token', token);
+    playlistUrl.searchParams.append('expires', expires);
     playlistUrl.searchParams.append('h', '1');
     const countryCodes = meta.countryCodes ?? [CountryCode.multi, ...(await this.determineCountryCodesFromPlaylist(ctx, playlistUrl, { headers }))];
     if (!hasMultiEnabled(ctx.config) && !countryCodes.some(countryCode => countryCode in ctx.config)) {
       return [];
     }
     // Compute a dynamic TTL based on the expires timestamp
-    const tokenTtl = Math.max(900000, Number(expiresMatch[1]) * 1000 - Date.now() - 120000); // 2min safety buffer
+    const tokenTtl = Math.max(900000, Number(expires) * 1000 - Date.now() - 120000); // 2min safety buffer
 
     return [
       {

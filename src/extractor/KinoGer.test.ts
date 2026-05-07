@@ -25,4 +25,12 @@ describe('KinoGer', () => {
   test('kinoger.p2pplay.pro', async () => {
     expect(await extractorRegistry.handle(ctx, new URL('https://kinoger.p2pplay.pro/#k53k9'))).toMatchSnapshot();
   });
+
+  test('returns empty when decryption fails', async () => {
+    expect(await extractorRegistry.handle(ctx, new URL('https://kinoger.re/#baddecrypt'))).toHaveLength(0);
+  });
+
+  test('returns empty when decrypted data is not valid JSON', async () => {
+    expect(await extractorRegistry.handle(ctx, new URL('https://kinoger.re/#badjson'))).toHaveLength(0);
+  });
 });

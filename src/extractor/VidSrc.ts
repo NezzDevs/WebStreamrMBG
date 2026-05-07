@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import winston from 'winston';
-import { BlockedError, TooManyRequestsError } from '../error';
+import { BlockedError, NotFoundError, TooManyRequestsError } from '../error';
 import { Context, Format, InternalUrlResult, Meta, NonEmptyArray } from '../types';
 import { Fetcher, guessHeightFromPlaylist } from '../utils';
 import { Extractor } from './Extractor';
@@ -65,11 +65,16 @@ export class VidSrc extends Extractor {
         .map(async ({ serverName, dataHash }) => {
           const rcpUrl = new URL(`/rcp/${dataHash}`, iframeUrl.origin);
           const iframeHtml = await this.fetcher.text(ctx, rcpUrl, { headers: { Referer: newUrl.origin } });
-          const srcMatch = iframeHtml.match(`src:\\s?'(.*)'`) as string[];
+          const srcMatch = iframeHtml.match(`src:\\s?'(.*)'`);
+          if (!srcMatch) throw new NotFoundError();
 
-          const playerHtml = await this.fetcher.text(ctx, new URL(srcMatch[1] as string, iframeUrl.origin), { headers: { Referer: rcpUrl.href } });
-          const fileMatch = playerHtml.match(`(https:\\/\\/.*?{v\\d}.*?) or`) as string[];
-          const m3u8Url = new URL((fileMatch[1] as string).replace(/{v\d}/, iframeUrl.host));
+          const srcPath = srcMatch[1] as string;
+          const playerHtml = await this.fetcher.text(ctx, new URL(srcPath, iframeUrl.origin), { headers: { Referer: rcpUrl.href } });
+          const fileMatch = playerHtml.match(`(https:\\/\\/.*?{v\\d}.*?) or`);
+          if (!fileMatch) throw new NotFoundError();
+
+          const fileUrl = fileMatch[1] as string;
+          const m3u8Url = new URL(fileUrl.replace(/{v\d}/, iframeUrl.host));
 
           return {
             url: m3u8Url,
