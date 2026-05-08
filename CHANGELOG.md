@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.73.1](https://github.com/newman2x/WebStreamrMBG/compare/v0.73.0...v0.73.1) (2026-05-08)
+
+
+### Miscellaneous Chores
+
+* pin resolve/typescript/eslint versions in renovate config ([80456c0](https://github.com/newman2x/WebStreamrMBG/commit/80456c0a27af76ddef52621569ba92f9d0cdeb76))
+* pin sqlite3 below v6 ([e41d797](https://github.com/newman2x/WebStreamrMBG/commit/e41d79777c9ad9702ee56f43ed018ceceb17c98a))
+
+
+### Bug Fixes
+
+* add input validation and error handling for malformed requests ([d842f10](https://github.com/newman2x/WebStreamrMBG/commit/d842f10e6eefba85aa406cae3b9846bcd81379e2))
+* guard regex matches and JSON.parse calls against null/invalid input ([58e2bba](https://github.com/newman2x/WebStreamrMBG/commit/58e2bba213dea77ac1f8f295f310afbab5dc3bed))
+* HDHub sources ([e9ba2e3](https://github.com/newman2x/WebStreamrMBG/commit/e9ba2e36f311e29a692c8a4ff6c7c2981a0aad6b))
+* **hubcloud:** support new download link formats ([47927b9](https://github.com/newman2x/WebStreamrMBG/commit/47927b9959ef524f4588cdcb6fdcf114990948ec))
+* resolve 5 bugs in Fetcher, FetcherMock, language, and cache utilities ([638a2d8](https://github.com/newman2x/WebStreamrMBG/commit/638a2d89b2343ce9b125668f299c9781b7fc4974))
+* resolve 6 confirmed bugs from Phase 0 triage ([5e0625e](https://github.com/newman2x/WebStreamrMBG/commit/5e0625ea5833f5a9db1e3d750100b511467b0c31))
+
 ## [0.73.0](https://github.com/newman2x/WebStreamrMBG/compare/v0.72.3...v0.73.0) (2026-05-06)
 
 
