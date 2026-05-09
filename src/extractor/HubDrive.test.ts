@@ -121,3 +121,54 @@ describe('HubDrive', () => {
     expect(result).toEqual([]);
   });
 });
+
+describe('HubDrive.resolveHubCloudUrl', () => {
+  test('resolves HubCloud URL from HubDrive page', async () => {
+    const hubCloud = new HubCloud(new FetcherMock(`${__dirname}/__fixtures__/HubDrive/HubCloud`), logger);
+    const hubDrive = new HubDrive(
+      new FetcherMock(`${__dirname}/__fixtures__/HubDrive`),
+      logger,
+      hubCloud,
+    );
+
+    const result = await hubDrive.resolveHubCloudUrl(ctx, new URL('https://hubdrive.space/file/7283903021'), {});
+    expect(result).not.toBeNull();
+    expect(result?.host).toMatch(/hubcloud/);
+  });
+
+  test('returns null when HubDrive page has no HubCloud link', async () => {
+    const hubCloud = new HubCloud(new FetcherMock(`${__dirname}/__fixtures__/HubDrive/HubCloud`), logger);
+    const hubDrive = new HubDrive(
+      new FetcherMock(`${__dirname}/__fixtures__/HubDrive`),
+      logger,
+      hubCloud,
+    );
+
+    // This fixture has no HubCloud link (missing hubcloud scenario)
+    const result = await hubDrive.resolveHubCloudUrl(ctx, new URL('https://hubdrive.space/file/2243124026'), {});
+    expect(result).toBeNull();
+  });
+
+  test('returns null when HubCloud links point to dead domains only', async () => {
+    const hubCloud = new HubCloud(new FetcherMock(`${__dirname}/__fixtures__/HubDrive/HubCloud`), logger);
+    const hubDrive = new HubDrive(
+      new FetcherMock(`${__dirname}/__fixtures__/HubDrive`),
+      logger,
+      hubCloud,
+    );
+
+    const result = await hubDrive.resolveHubCloudUrl(ctx, new URL('https://hubdrive.test/file/9990000002'), {});
+    expect(result).toBeNull();
+  });
+
+  test('returns null when fetch fails', async () => {
+    const fetcher = new FetcherMock(`${__dirname}/__fixtures__/HubDrive`);
+    const hubCloud = new HubCloud(new FetcherMock(`${__dirname}/__fixtures__/HubDrive/HubCloud`), logger);
+    const hubDrive = new HubDrive(fetcher, logger, hubCloud);
+
+    jest.spyOn(fetcher, 'text').mockRejectedValueOnce(new Error('Network error'));
+
+    const result = await hubDrive.resolveHubCloudUrl(ctx, new URL('https://hubdrive.space/file/7283903021'), {});
+    expect(result).toBeNull();
+  });
+});

@@ -47,9 +47,37 @@ export class HubDrive extends Extractor {
     return results;
   };
 
+  /** Resolve the HubCloud URL a HubDrive page delegates to, or null. */
+  public async resolveHubCloudUrl(ctx: Context, url: URL, meta: Meta): Promise<URL | null> {
+    const headers = { Referer: meta.referer ?? url.href };
+
+    let html: string;
+    try {
+      html = await this.fetcher.text(ctx, url, { headers });
+    } catch {
+      return null;
+    }
+
+    const $ = cheerio.load(html);
+    return this.findHubCloudUrl($);
+  }
+
   private async extractViaHubCloud(ctx: Context, html: string, meta: Meta): Promise<InternalUrlResult[]> {
     const $ = cheerio.load(html);
+    const hubCloudUrl = this.findHubCloudUrl($);
 
+    if (!hubCloudUrl) {
+      return [];
+    }
+
+    try {
+      return await this.hubCloud.extract(ctx, hubCloudUrl, meta);
+    } catch {
+      return [];
+    }
+  }
+
+  private findHubCloudUrl($: cheerio.CheerioAPI): URL | null {
     const hubCloudUrl = $('a:contains("HubCloud")')
       .map((_i, el) => {
         const href = $(el).attr('href');
@@ -64,15 +92,7 @@ export class HubDrive extends Extractor {
       })
       .get(0);
 
-    if (!hubCloudUrl) {
-      return [];
-    }
-
-    try {
-      return await this.hubCloud.extract(ctx, hubCloudUrl, meta);
-    } catch {
-      return [];
-    }
+    return hubCloudUrl ?? null;
   }
 
   private extractHubCdnResult(html: string, meta: Meta): InternalUrlResult[] {

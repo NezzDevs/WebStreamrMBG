@@ -25,19 +25,19 @@ const extractorRegistry = new ExtractorRegistry(
 const ctx = createTestContext();
 
 describe('HBLinks', () => {
-  test('handles page with HubCDN links (priority 1)', async () => {
+  test('handles page with HubCDN links', async () => {
     const result = await extractorRegistry.handle(ctx, new URL('https://hblinks.dad/archives/123'));
     expect(result.length).toBeGreaterThan(0);
     expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
   });
 
-  test('handles page with HubCloud links only (priority 2)', async () => {
+  test('handles page with HubCloud links only', async () => {
     const result = await extractorRegistry.handle(ctx, new URL('https://hblinks.dad/archives/456'));
     expect(result.length).toBeGreaterThan(0);
     expect(result.some(r => r.label.includes('HubCloud'))).toBe(true);
   });
 
-  test('handles page with HubDrive links only (priority 3)', async () => {
+  test('handles page with HubDrive links only', async () => {
     const result = await extractorRegistry.handle(ctx, new URL('https://hblinks.dad/archives/789'));
     expect(result.length).toBeGreaterThan(0);
   });
@@ -187,5 +187,109 @@ describe('HBLinks', () => {
     // HubCloud results should be present even though HubCDN also existed
     expect(result.length).toBeGreaterThan(0);
     expect(result.some(r => r.label?.includes('HubCloud'))).toBe(true);
+  });
+
+  test('deduplicates HubDrive that resolves to same HubCloud URL as direct link', async () => {
+    const fetcher = new FetcherMock(fixtureBase);
+    const localHubCloud = new HubCloud(new FetcherMock(`${fixtureBase}/HubCloud`), logger);
+    const localHubDrive = new HubDrive(new FetcherMock(`${fixtureBase}/HubDrive`), logger, localHubCloud);
+    const hblinks = new HBLinks(fetcher, logger, localHubDrive, localHubCloud);
+
+    // Page with both direct HubCloud link and HubDrive link
+    const cloudUrl = 'https://hubcloud.one/drive/same123';
+    const html = `<!DOCTYPE html><html><head><title>Dedup Test 2024</title></head><body>
+      <a href="${cloudUrl}">HubCloud</a>
+      <a href="https://hubdrive.space/file/drive789">HubDrive</a>
+    </body></html>`;
+
+    jest.spyOn(fetcher, 'text').mockResolvedValueOnce(html);
+    const cloudExtractSpy = jest.spyOn(localHubCloud, 'extract').mockResolvedValueOnce([
+      { url: new URL('https://hub.test-cdn.buzz/same123'), format: Format.unknown, label: 'HubCloud (FSL)', ttl: 120000 },
+    ]);
+    // HubDrive resolves to the SAME HubCloud URL as the direct link
+    jest.spyOn(localHubDrive, 'resolveHubCloudUrl').mockResolvedValueOnce(new URL(cloudUrl));
+
+    const result = await hblinks.extract(ctx, new URL('https://hblinks.dad/archives/hubclouddedup'), {});
+
+    // HubDrive is always resolved (no gate), but the duplicate URL is skipped
+    expect(localHubDrive.resolveHubCloudUrl).toHaveBeenCalled();
+    // hubCloud.extract should only be called once — the resolved URL was deduped
+    expect(cloudExtractSpy).toHaveBeenCalledTimes(1);
+    expect(result.length).toBe(1);
+    expect(result[0]?.label).toContain('HubCloud');
+  });
+
+  test('extracts from new HubCloud URL discovered via HubDrive', async () => {
+    const fetcher = new FetcherMock(fixtureBase);
+    const localHubCloud = new HubCloud(new FetcherMock(`${fixtureBase}/HubCloud`), logger);
+    const localHubDrive = new HubDrive(new FetcherMock(`${fixtureBase}/HubDrive`), logger, localHubCloud);
+    const hblinks = new HBLinks(fetcher, logger, localHubDrive, localHubCloud);
+
+    // Page with HubCloud A and HubDrive pointing to HubCloud B (different URL)
+    const html = `<!DOCTYPE html><html><head><title>New URL Test 2024</title></head><body>
+      <a href="https://hubcloud.one/drive/cloudA">HubCloud</a>
+      <a href="https://hubdrive.space/file/drive789">HubDrive</a>
+    </body></html>`;
+
+    jest.spyOn(fetcher, 'text').mockResolvedValueOnce(html);
+    const cloudExtractSpy = jest.spyOn(localHubCloud, 'extract');
+    cloudExtractSpy.mockResolvedValueOnce([ // Direct HubCloud A → results
+      { url: new URL('https://hub.test-cdn.buzz/cloudA'), format: Format.unknown, label: 'HubCloud (FSL)', ttl: 120000 },
+    ]);
+    cloudExtractSpy.mockResolvedValueOnce([ // HubCloud B via HubDrive → results
+      { url: new URL('https://hub.test-cdn.buzz/cloudB'), format: Format.unknown, label: 'HubCloud (FSL)', ttl: 120000 },
+    ]);
+    jest.spyOn(localHubDrive, 'resolveHubCloudUrl').mockResolvedValueOnce(
+      new URL('https://hubcloud.one/drive/cloudB'), // Different URL
+    );
+
+    const result = await hblinks.extract(ctx, new URL('https://hblinks.dad/archives/newurl'), {});
+
+    // HubDrive resolved to a new HubCloud URL — both get extracted
+    expect(localHubDrive.resolveHubCloudUrl).toHaveBeenCalled();
+    expect(cloudExtractSpy).toHaveBeenCalledTimes(2);
+    expect(result.length).toBe(2);
+  });
+
+  test('handles resolveHubCloudUrl failure gracefully', async () => {
+    const fetcher = new FetcherMock(fixtureBase);
+    const localHubCloud = new HubCloud(new FetcherMock(`${fixtureBase}/HubCloud`), logger);
+    const localHubDrive = new HubDrive(new FetcherMock(`${fixtureBase}/HubDrive`), logger, localHubCloud);
+    const hblinks = new HBLinks(fetcher, logger, localHubDrive, localHubCloud);
+
+    const html = `<!DOCTYPE html><html><head><title>Resolve Fail Test 2024</title></head><body>
+      <a href="https://hubcloud.one/drive/cloud123">HubCloud</a>
+      <a href="https://hubdrive.space/file/drive789">HubDrive</a>
+    </body></html>`;
+
+    jest.spyOn(fetcher, 'text').mockResolvedValueOnce(html);
+    jest.spyOn(localHubCloud, 'extract').mockResolvedValueOnce([]); // Direct HubCloud → empty
+    jest.spyOn(localHubDrive, 'resolveHubCloudUrl').mockRejectedValueOnce(new Error('Network error'));
+
+    const result = await hblinks.extract(ctx, new URL('https://hblinks.dad/archives/resolvefail'), {});
+
+    // Should not throw, just return empty
+    expect(result).toEqual([]);
+  });
+
+  test('handles resolveHubCloudUrl returning null (no HubCloud link on HubDrive page)', async () => {
+    const fetcher = new FetcherMock(fixtureBase);
+    const localHubCloud = new HubCloud(new FetcherMock(`${fixtureBase}/HubCloud`), logger);
+    const localHubDrive = new HubDrive(new FetcherMock(`${fixtureBase}/HubDrive`), logger, localHubCloud);
+    const hblinks = new HBLinks(fetcher, logger, localHubDrive, localHubCloud);
+
+    const html = `<!DOCTYPE html><html><head><title>No Cloud Test 2024</title></head><body>
+      <a href="https://hubcloud.one/drive/cloud123">HubCloud</a>
+      <a href="https://hubdrive.space/file/drive789">HubDrive</a>
+    </body></html>`;
+
+    jest.spyOn(fetcher, 'text').mockResolvedValueOnce(html);
+    jest.spyOn(localHubCloud, 'extract').mockResolvedValueOnce([]); // Direct HubCloud → empty
+    jest.spyOn(localHubDrive, 'resolveHubCloudUrl').mockResolvedValueOnce(null); // No HubCloud link
+
+    const result = await hblinks.extract(ctx, new URL('https://hblinks.dad/archives/nocloud'), {});
+
+    // resolveHubCloudUrl returned null — HubDrive would return empty anyway, so skip
+    expect(result).toEqual([]);
   });
 });

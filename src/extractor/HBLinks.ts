@@ -42,7 +42,6 @@ export class HBLinks extends Extractor {
 
     const $ = cheerio.load(html);
 
-    // Extract quality/language info from the page title
     const pageTitle = $('title').text().trim();
     const countryCodes = [...new Set([...meta.countryCodes ?? [], ...findCountryCodes(pageTitle)])];
     const height = meta.height ?? findHeight(pageTitle);
@@ -50,51 +49,50 @@ export class HBLinks extends Extractor {
 
     const results: InternalUrlResult[] = [];
 
-    // Process ALL link types found on the page (not priority-fallback).
-    // A single hblinks page can contain multiple quality options across
-    // different hosts (e.g. 1080p on HubCDN, 4K on HubCloud), so we
-    // extract from every link and aggregate all results.
-
-    // HubCDN links (hubcdn.fans) — these contain direct Google video URLs
+    // HubCDN → direct Google video URLs, never duplicated by HubCloud
     const hubCdnLinks = this.extractLinks($, url, /hubcdn/);
     for (const cdnUrl of hubCdnLinks) {
       try {
         const cdnResults = await this.hubDrive.extract(ctx, cdnUrl, updatedMeta);
         results.push(...cdnResults);
       } catch {
-        // Skip failed HubCDN extractions
+        // skip failed extraction
       }
     }
 
-    // HubCloud links — handles redirect → download links page
-    const hubCloudLinks = this.extractLinks($, url, /hubcloud/);
-    for (const cloudUrl of hubCloudLinks) {
+    // Deduplicate HubCloud URLs: HubDrive always delegates to HubCloud, so same URL via either path is extracted once
+    const seenHubCloudUrls = new Set<string>();
+    const hubCloudUrls: URL[] = [];
+
+    for (const cloudUrl of this.extractLinks($, url, /hubcloud/)) {
+      seenHubCloudUrls.add(cloudUrl.href);
+      hubCloudUrls.push(cloudUrl);
+    }
+
+    for (const driveUrl of this.extractLinks($, url, /hubdrive/)) {
       try {
-        const cloudResults = await this.hubCloud.extract(ctx, cloudUrl, updatedMeta);
-        results.push(...cloudResults);
+        const resolved = await this.hubDrive.resolveHubCloudUrl(ctx, driveUrl, updatedMeta);
+        if (resolved && !seenHubCloudUrls.has(resolved.href)) {
+          seenHubCloudUrls.add(resolved.href);
+          hubCloudUrls.push(resolved);
+        }
       } catch {
-        // Skip failed HubCloud extractions
+        // skip failed resolution
       }
     }
 
-    // HubDrive links — delegates to HubCloud for hubdrive.* URLs
-    const hubDriveLinks = this.extractLinks($, url, /hubdrive/);
-    for (const driveUrl of hubDriveLinks) {
+    for (const cloudUrl of hubCloudUrls) {
       try {
-        const driveResults = await this.hubDrive.extract(ctx, driveUrl, updatedMeta);
-        results.push(...driveResults);
+        results.push(...await this.hubCloud.extract(ctx, cloudUrl, updatedMeta));
       } catch {
-        // Skip failed HubDrive extractions
+        // skip failed extraction
       }
     }
 
     return results;
   }
 
-  /**
-   * Extract links matching a host pattern from the page.
-   * Deduplicates by URL to avoid processing the same link twice.
-   */
+  /** Extract links matching a host pattern, deduplicated by URL. */
   private extractLinks($: cheerio.CheerioAPI, pageUrl: URL, hostPattern: RegExp): URL[] {
     const links: URL[] = [];
     const seen = new Set<string>();
@@ -110,7 +108,7 @@ export class HBLinks extends Extractor {
             links.push(parsedUrl);
           }
         } catch {
-          // Skip invalid URLs
+          // skip invalid URL
         }
       }
     });
