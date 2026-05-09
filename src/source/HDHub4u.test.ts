@@ -5,7 +5,7 @@ import { CountryCode } from '../types';
 import { Fetcher, FetcherMock, ImdbId } from '../utils';
 import { resolveRedirectUrl } from './hd-hub-helper';
 import { HDHub4u, resetCdnCache } from './HDHub4u';
-import { Source } from './Source';
+import { Source, SourceResult } from './Source';
 
 jest.mock('./hd-hub-helper', () => ({
   resolveRedirectUrl: jest.fn(),
@@ -301,6 +301,92 @@ describe('HDHub4u internal methods', () => {
     jest.spyOn(source as any, 'handlePage').mockResolvedValue([
       { url: new URL('https://hubdrive.dad/file/123'), meta: { countryCodes: [CountryCode.multi] } },
     ]);
+
+    const results = await source['handleInternal'](ctx, 'movie', imdbId);
+    expect(results).toHaveLength(1);
+  });
+
+  test('handleInternal deduplicates exact same HubCloud URL from direct and redirect paths', async () => {
+    const imdbId = new ImdbId('tt5950044', undefined, undefined);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'fetchPageUrls').mockResolvedValue([
+      new URL('https://new6.hdhub4u.fo/superman-2025'),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'handlePage').mockResolvedValue([
+      { url: new URL('https://hubcloud.one/drive/abc'), meta: { countryCodes: [CountryCode.multi] } },
+      { url: new URL('https://hubcloud.one/drive/abc'), meta: { countryCodes: [CountryCode.multi] } },
+    ]);
+
+    const results = await source['handleInternal'](ctx, 'movie', imdbId);
+    expect(results).toHaveLength(1);
+  });
+
+  test('handleInternal deduplicates HubCloud URLs with same path but different tokens', async () => {
+    const imdbId = new ImdbId('tt5950044', undefined, undefined);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'fetchPageUrls').mockResolvedValue([
+      new URL('https://new6.hdhub4u.fo/superman-2025'),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'handlePage').mockResolvedValue([
+      { url: new URL('https://hubcloud.one/drive/abc?token=xyz'), meta: { countryCodes: [CountryCode.multi] } },
+      { url: new URL('https://hubcloud.one/drive/abc?token=def'), meta: { countryCodes: [CountryCode.multi] } },
+    ]);
+
+    const results = await source['handleInternal'](ctx, 'movie', imdbId);
+    expect(results).toHaveLength(1);
+  });
+
+  test('handleInternal keeps different HubCloud paths as separate results', async () => {
+    const imdbId = new ImdbId('tt5950044', undefined, undefined);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'fetchPageUrls').mockResolvedValue([
+      new URL('https://new6.hdhub4u.fo/superman-2025'),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'handlePage').mockResolvedValue([
+      { url: new URL('https://hubcloud.one/drive/abc'), meta: { countryCodes: [CountryCode.multi] } },
+      { url: new URL('https://hubcloud.one/drive/xyz'), meta: { countryCodes: [CountryCode.multi] } },
+    ]);
+
+    const results = await source['handleInternal'](ctx, 'movie', imdbId);
+    expect(results).toHaveLength(2);
+  });
+
+  test('handleInternal keeps HubCDN URLs with different link params as separate results', async () => {
+    const imdbId = new ImdbId('tt5950044', undefined, undefined);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'fetchPageUrls').mockResolvedValue([
+      new URL('https://new6.hdhub4u.fo/superman-2025'),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'handlePage').mockResolvedValue([
+      { url: new URL('https://hubcdn.fans/dl/?link=hash1'), meta: { countryCodes: [CountryCode.multi] } },
+      { url: new URL('https://hubcdn.fans/dl/?link=hash2'), meta: { countryCodes: [CountryCode.multi] } },
+    ]);
+
+    const results = await source['handleInternal'](ctx, 'movie', imdbId);
+    expect(results).toHaveLength(2);
+  });
+
+  test('handleInternal deduplicates across multiple page URLs', async () => {
+    const imdbId = new ImdbId('tt5950044', undefined, undefined);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'fetchPageUrls').mockResolvedValue([
+      new URL('https://new6.hdhub4u.fo/superman-2025'),
+      new URL('https://new6.hdhub4u.fo/superman-2025-4k'),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(source as any, 'handlePage').mockImplementation(async (): Promise<SourceResult[]> => {
+      // Both pages return the same hubcloud URL
+      return [{ url: new URL('https://hubcloud.one/drive/shared123'), meta: { countryCodes: [CountryCode.multi] } }];
+    });
 
     const results = await source['handleInternal'](ctx, 'movie', imdbId);
     expect(results).toHaveLength(1);

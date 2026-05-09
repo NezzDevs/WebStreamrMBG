@@ -36,6 +36,27 @@ const HOST_PATTERNS = ['hubdrive', 'hubcloud', 'hubcdn'];
 const EXCLUDED_HREF_PATTERNS = ['gadgetsweb', '4khdhub', 'linksly', 'shareus', 'dood', 'desiupload', 'megaup', 'filepress', 'mediashore', 'ninjastream', 'hubstream'];
 const DEAD_HOST_DOMAINS = new Set(['hubcloud.ink', 'hubcloud.co', 'hubcloud.cc', 'hubcloud.me', 'hubcloud.xyz']);
 
+/** Canonical identity key for a hub URL — strips ephemeral query params for HubCloud, keeps full href otherwise. */
+const getCanonicalKey = (url: URL): string => {
+  if (/hubcloud/.test(url.host)) {
+    const u = new URL(url);
+    u.search = '';
+    return u.href;
+  }
+  return url.href;
+};
+
+/** Deduplicate SourceResults by canonical URL. */
+const deduplicateSourceResults = (results: SourceResult[]): SourceResult[] => {
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    const key = getCanonicalKey(r.url);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export class HDHub4u extends Source {
   public readonly id = 'hdhub4u';
 
@@ -78,11 +99,13 @@ export class HDHub4u extends Source {
 
     const pageUrls = await this.fetchPageUrls(ctx, imdbId);
 
-    return (await Promise.all(
-      pageUrls.map(async (pageUrl) => {
-        return await this.handlePage(ctx, pageUrl, imdbId);
-      }),
-    )).flat();
+    return deduplicateSourceResults(
+      (await Promise.all(
+        pageUrls.map(async (pageUrl) => {
+          return await this.handlePage(ctx, pageUrl, imdbId);
+        }),
+      )).flat(),
+    );
   };
 
   private readonly handlePage = async (ctx: Context, pageUrl: URL, imdbId: ImdbId): Promise<SourceResult[]> => {
