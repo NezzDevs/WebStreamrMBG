@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import bytes from 'bytes';
 import * as cheerio from 'cheerio';
 import winston from 'winston';
@@ -28,6 +29,15 @@ interface HubCdnResult {
   url: URL;
   delegateToHubCloud: boolean;
 }
+
+/** Extract filename from Content-Disposition header. */
+const extractFilenameFromContentDisposition = (header: string | undefined): string | null => {
+  const match = header?.match(/filename="?([^"]+)"?/);
+  return match?.[1] ?? null;
+};
+
+/** Deterministic short hash of a URL for unique extractorId. */
+const urlHash8 = (url: URL): string => createHash('sha256').update(url.href).digest('hex').slice(0, 8);
 
 // Unified extractor for hubdrive/hubcloud/hubcdn — dedup via normalizeAsync() at registry level
 export class HubExtractor extends Extractor {
@@ -111,7 +121,43 @@ export class HubExtractor extends Extractor {
           return await this.hubCloud.extractInternal(ctx, result.url, meta);
         } catch { return []; }
       }
-      return [{ url: result.url, format: Format.unknown, meta }];
+      // Direct video URL (hubcdn patterns 2 & 3) — enrich via HEAD, fallback to hash-based extractorId
+      const cdnExtractorId = `hub_cdn_${urlHash8(result.url)}`;
+
+      try {
+        const headHeaders = await this.fetcher.head(ctx, result.url, { headers: { Referer: url.href } });
+        const filename = extractFilenameFromContentDisposition(headHeaders['content-disposition'] as string | undefined);
+        const contentLength = parseInt(headHeaders['content-length'] as string, 10);
+
+        if (filename) {
+          const countryCodes = [...new Set([...meta.countryCodes ?? [], ...findCountryCodes(filename)])];
+          const height = meta.height ?? findHeight(filename);
+
+          return [{
+            url: result.url,
+            format: Format.unknown,
+            meta: {
+              ...meta,
+              ...(countryCodes.length > 0 && { countryCodes }),
+              ...(height !== undefined && { height }),
+              title: `${filename} ⚠️ no seek`,
+              ...(contentLength > 0 && { bytes: contentLength }),
+              extractorId: cdnExtractorId,
+            },
+            label: 'HubCloud (CDN)',
+          }];
+        }
+      } catch {
+        // HEAD failed — fall through to hash-only fallback
+      }
+
+      // Fallback: no HEAD metadata, use hash-based extractorId for unique bingeGroup
+      return [{
+        url: result.url,
+        format: Format.unknown,
+        meta: { ...meta, extractorId: cdnExtractorId },
+        label: 'HubCloud (CDN)',
+      }];
     }
 
     // HubDrive → try resolution cache first, then fallback

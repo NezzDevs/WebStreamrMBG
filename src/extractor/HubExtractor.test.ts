@@ -144,16 +144,25 @@ describe('HubExtractor HubCDN extraction', () => {
   const extractor = new HubExtractor(new FetcherMock(hubExtractorFixtureBase), logger);
   const registry = new ExtractorRegistry(logger, [extractor]);
 
-  test('var reurl redirect → Google video URL', async () => {
+  test('var reurl redirect → Google video URL enriched via HEAD', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/testcode123'));
     expect(result).toHaveLength(1);
-    expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
+    expect(result[0]?.url.href).toContain('googleusercontent.com');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+    expect(result[0]?.meta?.title).toContain('Movie.2024.1080p');
+    expect(result[0]?.meta?.title).toContain('⚠️ no seek');
+    expect(result[0]?.meta?.height).toBe(1080);
+    expect(result[0]?.meta?.bytes).toBe(3620419907);
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
   });
 
-  test('googleusercontent fallback', async () => {
+  test('googleusercontent fallback enriched via HEAD', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/fallbackcode456'));
     expect(result).toHaveLength(1);
-    expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
+    expect(result[0]?.url.href).toContain('googleusercontent.com');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+    expect(result[0]?.meta?.title).toContain('720p');
+    expect(result[0]?.meta?.height).toBe(720);
   });
 
   test('no download link → empty', async () => {
@@ -161,17 +170,20 @@ describe('HubExtractor HubCDN extraction', () => {
     expect(result).toEqual([]);
   });
 
-  test('a id="vd" link (new format)', async () => {
+  test('a id="vd" link (new format) enriched via HEAD', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/vdlink789'));
     expect(result).toHaveLength(1);
-    expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
+    expect(result[0]?.url.href).toContain('googleusercontent.com');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+    expect(result[0]?.meta?.title).toContain('1080p');
   });
 
-  test('var reurl pointing to hubcdn.fans/dl/ redirect → extracts link param', async () => {
+  test('var reurl pointing to hubcdn.fans/dl/ redirect → extracts link param, enriched via HEAD', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/redirecttest'));
     expect(result).toHaveLength(1);
-    expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
-    expect(result.some(r => r.url.href.includes('hubcdn.fans'))).toBe(false);
+    expect(result[0]?.url.href).toContain('googleusercontent.com');
+    expect(result[0]?.url.href).not.toContain('hubcdn.fans');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
   });
 
   test('hubcdn → hubcloud redirect → delegates to HubCloud extraction', async () => {
@@ -187,10 +199,14 @@ describe('HubExtractor HubCDN extraction', () => {
     expect(result.every(r => !r.url.href.includes('hubcdn.org'))).toBe(true);
   });
 
-  test('hubcdn → direct video URL (hub.yummy.monster) → returns as-is', async () => {
+  test('hubcdn → direct video URL (hub.yummy.monster) → HEAD no Content-Disposition → fallback label', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.org/file/hubcloudredirect'));
     expect(result).toHaveLength(1);
     expect(result[0]?.url.host).toBe('hub.yummy.monster');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+    // No Content-Disposition in HEAD fixture → fallback path (no title, but still has extractorId)
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
+    expect(result[0]?.meta?.title).toBeUndefined();
   });
 
   test('invalid link param → empty', async () => {
@@ -215,16 +231,77 @@ describe('HubExtractor HubCDN extraction', () => {
     expect(result.every(r => !r.url.href.includes('hubcdn.fans'))).toBe(true);
   });
 
-  test('?r=BASE64 hubcdn redirect → direct video URL → returns as-is', async () => {
+  test('?r=BASE64 hubcdn redirect → direct video URL → HEAD no Content-Disposition → fallback', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/redirectrbase64direct'));
     expect(result).toHaveLength(1);
     expect(result[0]?.url.host).toBe('hub.ymmmy.monster');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
   });
 
-  test('?r=BASE64 hubcdn redirect with nested ?link= → extracts link param', async () => {
+  test('?r=BASE64 hubcdn redirect with nested ?link= → extracts link param, enriched via HEAD', async () => {
     const result = await registry.handle(ctx, new URL('https://hubcdn.fans/file/redirectrwithlink'));
     expect(result).toHaveLength(1);
-    expect(result.some(r => r.url.href.includes('googleusercontent.com'))).toBe(true);
+    expect(result[0]?.url.href).toContain('googleusercontent.com');
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+  });
+});
+
+describe('HubExtractor HubCDN HEAD enrichment', () => {
+  test('HEAD with Content-Disposition enriches title, height, bytes, extractorId', async () => {
+    const fetcher = new FetcherMock(hubExtractorFixtureBase);
+    const extractor = new HubExtractor(fetcher, logger);
+
+    const result = await extractor.extract(ctx, new URL('https://hubcdn.fans/file/testcode123'), { countryCodes: [CountryCode.multi] });
+    expect(result).toHaveLength(1);
+    expect(result[0]?.meta?.title).toContain('Movie.2024.1080p');
+    expect(result[0]?.meta?.title).toContain('⚠️ no seek');
+    expect(result[0]?.meta?.height).toBe(1080);
+    expect(result[0]?.meta?.bytes).toBe(3620419907);
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
+    // Source countryCodes (multi) merged with filename countryCodes (hi, en)
+    expect(result[0]?.meta?.countryCodes).toContain(CountryCode.multi);
+  });
+
+  test('HEAD without Content-Disposition → fallback with hash extractorId only', async () => {
+    const fetcher = new FetcherMock(hubExtractorFixtureBase);
+    const extractor = new HubExtractor(fetcher, logger);
+
+    const result = await extractor.extract(ctx, new URL('https://hubcdn.org/file/hubcloudredirect'), {});
+    expect(result).toHaveLength(1);
+    expect(result[0]?.meta?.title).toBeUndefined();
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+  });
+
+  test('HEAD failure → fallback with hash extractorId', async () => {
+    const fetcher = new FetcherMock(hubExtractorFixtureBase);
+    const extractor = new HubExtractor(fetcher, logger);
+    // Mock HEAD to throw
+    jest.spyOn(fetcher, 'head').mockRejectedValueOnce(new Error('HEAD timeout'));
+
+    const result = await extractor.extract(ctx, new URL('https://hubcdn.fans/file/testcode123'), {});
+    expect(result).toHaveLength(1);
+    expect(result[0]?.meta?.title).toBeUndefined();
+    expect(result[0]?.meta?.extractorId).toMatch(/^hub_cdn_[0-9a-f]{8}$/);
+    expect(result[0]?.label).toBe('HubCloud (CDN)');
+  });
+
+  test('unique extractorId per URL → unique bingeGroup', async () => {
+    const fetcher = new FetcherMock(hubExtractorFixtureBase);
+    const extractor = new HubExtractor(fetcher, logger);
+
+    const result1 = await extractor.extract(ctx, new URL('https://hubcdn.fans/file/testcode123'), {});
+    const result2 = await extractor.extract(ctx, new URL('https://hubcdn.fans/file/fallbackcode456'), {});
+    expect(result1[0]?.meta?.extractorId).not.toBe(result2[0]?.meta?.extractorId);
+  });
+
+  test('source meta.height wins over HEAD filename height', async () => {
+    const fetcher = new FetcherMock(hubExtractorFixtureBase);
+    const extractor = new HubExtractor(fetcher, logger);
+
+    const result = await extractor.extract(ctx, new URL('https://hubcdn.fans/file/testcode123'), { height: 720 });
+    expect(result[0]?.meta?.height).toBe(720);
   });
 });
 
